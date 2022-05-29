@@ -11,7 +11,7 @@ const int Valve1 = 4;
 const int Valve2 = 5;
 const int Valve3 = 6;
 
-int PWMPump = 140; // PWM to the motors, pump rotation speed assumed to be linear with PWM at 0 counterpressure
+int PWMPump = 140; // PWM to the motors
 int command = 0;
 /* Communication */
 char initialized = 'i';
@@ -26,6 +26,7 @@ long int nextSampleTime = 0;
 /* pressure control */
 int currentPressure = 0;
 int previousPressure = 0;
+int detectionThreshold = 525;
 int maxPressure = 530;
 
 void setParameters(){
@@ -60,9 +61,7 @@ void resetVolume(){
 
 void printInfo(){
   Serial.print(logTime);
-  Serial.print(':');
-  Serial.print(previousPressure);
-  Serial.print(',');   
+  Serial.print(':'); 
   Serial.print(currentPressure);
   Serial.print('\n');
 }
@@ -70,7 +69,7 @@ void printInfo(){
 /* Actual move execution */
 void doMeasurement(){
   stopMeasurement = false;
-  Serial.print("\n PWM,");
+  Serial.print("\nPWM:");
   Serial.print(PWMPump);
   Serial.print('\n');
   
@@ -89,20 +88,18 @@ void doMeasurement(){
         Serial.print("User stopped measurement \n");       
       }
     }    
-    if (currentPressure>maxPressure){
+    if (currentPressure > maxPressure){
       printInfo();
       Serial.print("Pressure exceeded \n");
       resetVolume();
       stopMeasurement = true;
     }
-    if (currentPressure<previousPressure){
+    if (currentPressure<previousPressure && currentPressure > detectionThreshold){
       printInfo();
       Serial.print("Pressure dropped \n");
       resetVolume();
       stopMeasurement = true;
-    }
-
-    
+    }    
     if (millis() > nextSampleTime) {
       previousPressure = currentPressure;
       currentPressure = analogRead(A3); 
