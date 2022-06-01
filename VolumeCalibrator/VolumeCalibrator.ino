@@ -26,10 +26,17 @@ long int nextSampleTime = 0;
 /* pressure control */
 int currentPressure = 0;
 int previousPressure = 0;
-int detectionThreshold = 525;
+int pressureThreshold = 525;
+int vacuumThreshold = 512;
 int maxPressure = 530;
 
-void setParameters(){
+void setPressureThresholds(){
+  pressureThreshold = Serial.parseInt();
+  vacuumThreshold = Serial.parseInt();
+  maxPressure = Serial.parseInt();  
+}
+
+void setMoveParams(){
     PWMPump = Serial.parseInt(); 
     sampleTime = Serial.parseInt();  
     Serial.print('\n');
@@ -60,28 +67,92 @@ void resetVolume(){
 }
 
 void printInfo(){
-  Serial.print(logTime);
-  Serial.print(':'); 
-  Serial.print(currentPressure);
-  Serial.print('\n');
+    if (millis() > nextSampleTime) {
+    previousPressure = currentPressure;
+    currentPressure = analogRead(A3); 
+    nextSampleTime += sampleTime;
+    logTime = millis() - startTime;
+    Serial.print(logTime -1);
+    Serial.print(':'); 
+    Serial.print(currentPressure);
+    Serial.print('\n');   
+  }
 }
 
-/* Actual move execution */
-void doMeasurement(){
+void measureLeakage(){
   stopMeasurement = false;
-  Serial.print("\nPWM:");
-  Serial.print(PWMPump);
-  Serial.print('\n');
-  
+  Serial.print("Measure Leakage \n");
   currentPressure = analogRead(A3); 
   previousPressure = currentPressure;
   startTime = millis();
   nextSampleTime = startTime;
-
   while (not stopMeasurement){
     if (Serial.available()){
       char a = Serial.read();
       if (a == '3'){
+        stopMeasurement = true;
+        resetVolume();
+        Serial.print("User stopped measurement \n");       
+      }
+    } 
+    if (currentPressure < vacuumThreshold){
+      Serial.print("VacuumPressure reached \n");
+      resetVolume();
+      stopMeasurement = true;
+    } 
+    printInfo();
+  }
+}
+
+void measureVacuum(){
+  stopMeasurement = false;
+  Serial.print("Measure Vacuum \n");
+  Serial.print("PWM:");
+  Serial.print(PWMPump);
+  Serial.print('\n');
+  currentPressure = analogRead(A3); 
+  previousPressure = currentPressure;
+  startTime = millis();
+  nextSampleTime = startTime;
+  analogWrite(pressurePump, 0);
+  analogWrite(vacuumPump, PWMPump);
+  while (not stopMeasurement){
+    if (Serial.available()){
+      char a = Serial.read();
+      if (a == '!'){
+        stopMeasurement = true;
+        analogWrite(pressurePump, 0);
+        resetVolume();
+        Serial.print("User stopped measurement \n");       
+      }
+    } 
+    if (currentPressure < vacuumThreshold){
+      Serial.print("VacuumPressure reached \n");
+      resetVolume();
+      stopMeasurement = true;
+    } 
+    printInfo(); 
+  }
+}
+
+/* Actual move execution */
+void measurePressure(){
+  stopMeasurement = false;
+  Serial.print("Measure Pressure \n");
+  Serial.print("PWM:");
+  Serial.print(PWMPump);
+  Serial.print('\n');
+  currentPressure = analogRead(A3); 
+  previousPressure = currentPressure;
+  startTime = millis();
+  nextSampleTime = startTime;
+  analogWrite(vacuumPump, 0);
+  analogWrite(pressurePump, PWMPump);
+
+  while (not stopMeasurement){
+    if (Serial.available()){
+      char a = Serial.read();
+      if (a == '!'){
         stopMeasurement = true;
         analogWrite(pressurePump, 0);
         resetVolume();
@@ -89,25 +160,18 @@ void doMeasurement(){
       }
     }    
     if (currentPressure > maxPressure){
-      printInfo();
       Serial.print("Pressure exceeded \n");
-      resetVolume();
+      //resetVolume();
       stopMeasurement = true;
     }
-    if (currentPressure<previousPressure && currentPressure > detectionThreshold){
-      printInfo();
+    if (currentPressure<previousPressure && currentPressure > pressureThreshold){
       Serial.print("Pressure dropped \n");
-      resetVolume();
+      //resetVolume();
       stopMeasurement = true;
-    }    
-    if (millis() > nextSampleTime) {
-      previousPressure = currentPressure;
-      currentPressure = analogRead(A3); 
-      nextSampleTime += sampleTime;
-      logTime = millis() - startTime;
-      printInfo();    
     } 
+    printInfo();    
   } 
+  analogWrite(pressurePump, 0);
 } 
 
 void setup() {
@@ -132,23 +196,26 @@ void setup() {
   while (not Serial.available()){
     delay(10);
   }
-  delay(10);  // sloppy way to make sure all data is in, good enough for hack program
 }
 
 void loop() {
   if (Serial.available()){
     command = Serial.parseInt();
     if (command == 0){
-      setParameters();   
+      setMoveParams();   
     }
     if (command == 1){
       resetVolume();
-      analogWrite(pressurePump, PWMPump);
-      delay(500); // Wait till inflation has really begun
-      doMeasurement();
+      measurePressure();
+      measureVacuum();
     }
     if (command == 2){
       resetVolume();
+      measurePressure();  
+      measureLeakage();   
+    }
+    if (command == 3){
+      setPressureThresholds();
     }
   }
 }
