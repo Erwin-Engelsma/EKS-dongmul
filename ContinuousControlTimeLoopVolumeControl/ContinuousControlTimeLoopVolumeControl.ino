@@ -16,8 +16,8 @@ const int Valve3 = 6;
    1) with equal pressure motor rotation speed is linear with PWM,with an offset  (motRot = factor * (PWM - floor) )
    2) with increasing pressure, motor rotation is linearly influenced (faster or slower depending on vacuum or pressure motor
    2a) pressure is assumed 0 at 500 sensor reading
-   3) Pressurepump: deltaVolume = integrationTime * (PumpSpeed - floor) * deltaPressureVolume * pressureCalFactor / currentPressure
-   4) Vacuumpump:   deltaVolume = - integrationTime * (PumpSpeed - floor)* deltaVacuumVolume * currentPressure / pressureCalFactor
+   3) Pressurepump: deltaVolume = integrateTime * (PWMPump - floor) * pressureDeltaVolume * pressureZero / currentPressure
+   4) Vacuumpump:   deltaVolume = - integrateTime * (PWMPump - floor)* vacuumDeltaVolume * currentPressure / pressureZero
    5) Leakage in the tubes can be neglected (no idea if this is true)
    Note for 3 and 4: higher pressure slows pressure pump down and speeds vacuumpump up
    Note for 3 and 4: vacuumpump gets out air much faster than pressurepump gets air in
@@ -29,15 +29,12 @@ const int Valve3 = 6;
    Also: measuring real air displacement is better.
 */
 
-int PumpSpeed = 0; // PWM to the motors, pump rotation speed assumed to be linear with PWM at 0 counterpressure
+int PWMPump = 0; // PWM to the motors, pump rotation speed assumed to be linear with PWM at 0 counterpressure
 float setVolume = 0.0;         // Requested volume of air in Dongmul 
 float currentVolume = 0.0;     // Current 'calcuguessed' volume of air in Dongmul, prefer using a sensor
-float pressureCalFactor = 500; // Atmosphere pressure is roughly 500 by the factor with currentpressure a linear relation is assumed
+float pressureZero = 500; // Atmosphere pressure is roughly 500 by the factor with currentpressure a linear relation is assumed
 float currentPressure = 500;   // Current pressure as measured by presssure sensor
-float deltaPressureVolume = 0.005; // Amount of air pumped by pressure pump for PWM 1 and 0 counter pressure
-float deltaVacuumVolume = 0.01;      // Amount of air pumped by vacuum pump for PWM 1 and 0 counter pressure
-float maxVolume = 15.0;   // max Allowed volume
-float motorFloor = 90.0; //For this PWM value the motor starts getting to be active. So in volume formula subtracted
+float maxVolume = 2500.0;   // max Allowed volume
 int basePressure = 0; // base line calibration for low pressure, used to stop vacuumpump when dongmul is empty
 
 /* Communication */
@@ -49,29 +46,29 @@ char initialized = 'i';
 /* Timing parameters */
 long int moveTime = 0; // Determines the time that the next movement is made must be long (mSec)
 long int nextMoveTime = 300; // time in mSec before next move is made after completion.
-float integrationTime = float(nextMoveTime) / 1000.0; // integration time for calculating the pumped air volume, in seconds
+//float integrateTime = float(nextMoveTime) / 1000.0; // integration time for calculating the pumped air volume, in Seconds
 long int reportPressureTime = 0; //Timer for next time to report air pressure
 long int nextReportPressureTime = 1000; //Delay in reporting next pressure, in mSec
 
 /* send the measured pressure to Python */
 void reportPressure(){
+    reportPressureTime = millis() + nextReportPressureTime;
     currentPressure = analogRead(A3);   
-    Serial.print("Volume Set, Measured: ");
-    Serial.print(setVolume);
+    Serial.print("Press, Volume: ");
+    Serial.print(currentPressure);
     Serial.print(" ");
     Serial.print(currentVolume);    
-    reportPressureTime = millis() + nextReportPressureTime;
 }
 
 void calibrateVolume(){
-    deltaPressureVolume = Serial.parseFloat(); 
-    deltaVacuumVolume = Serial.parseFloat();      
+//    pressureDeltaVolume = Serial.parseFloat(); 
+//    vacuumDeltaVolume = Serial.parseFloat();      
 }
 
 void executeCommand(){
     firstFloat = Serial.parseFloat(); 
     secondFloat = Serial.parseFloat(); 
-    PumpSpeed = mapFloat(firstFloat, 0, 1, 80, 160);
+    PWMPump = mapFloat(firstFloat, 0, 1, 65, 110);
     setVolume = mapFloat(secondFloat, 0, 1, 0, maxVolume);       
 }
 
@@ -87,7 +84,7 @@ void resetVolume(){
   digitalWrite (Valve2, Open);
   digitalWrite (Valve3, Close);
   delay (2000); // Wait for all mechanical action to finish
-  basePressure = analogRead(A3) + 5; // measure and provide the base pressure  
+  basePressure = analogRead(A3) ; // measure and provide the base pressure  
   currentVolume = 0;
   // Set for control by pumps:
   digitalWrite (Valve1, Close); 
@@ -100,22 +97,23 @@ void doTheMove(){
     moveTime = millis() + nextMoveTime; // put here so duration of calculation does not influence it
     currentPressure = analogRead(A3);
    
-    /* If currentVolume smaller than set Volume,  then: Inflate else deflate
+    /* If currentVolume smaller than set Volume,  then: Inflate else deflate (if pressure high enough)
      */
-    if (currentVolume < setVolume) {
+    if (currentVolume < setVolume && currentPressure <= 530) {
       analogWrite(vacuumPump, 0);
-      analogWrite(pressurePump, PumpSpeed);
-      currentVolume += integrationTime * 1.20 * (PumpSpeed - motorFloor) * deltaPressureVolume * float(pressureCalFactor) / float(currentPressure) ;
+      analogWrite(pressurePump, PWMPump);
+      currentVolume += PWMPump * nextMoveTime * 0.010023 - 0.59826;
+      
     } else {  
-      if (currentPressure > basePressure) {
-        analogWrite(vacuumPump, PumpSpeed);
+      if (currentPressure > 515) {  // basePressure
+        analogWrite(vacuumPump, PWMPump);
         analogWrite(pressurePump, 0); 
-        currentVolume -= integrationTime * 1.20 * (PumpSpeed - motorFloor) * deltaVacuumVolume * float(currentPressure) / float(pressureCalFactor) ;
+        currentVolume -= PWMPump * nextMoveTime * 0.006065 - 0.34273; 
       }  else{
-         analogWrite(vacuumPump, 0); // stop taking air out         
+         analogWrite(vacuumPump, 0); //stop taking air out when pressure below basePressure  
+         currentVolume -= nextMoveTime * 0.0001 ;      
       }
     } 
-
 } 
 
 void processTheInput(){
