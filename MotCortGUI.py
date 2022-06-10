@@ -126,6 +126,8 @@ class mprocExample(tk.Tk):
         self.negVolumeSlider.bind("<ButtonRelease-1>", self.updateNegVolSliderValue)
         self.negVolumeSlider.set(100.0)
         self.negVolumeSlider.grid(column = 6, row = 5, sticky = 'n')
+        self.message_label = tk.Label(self)
+        self.message_label.grid(column = 0 , row = 25)
         
         """ 
         EEG settings
