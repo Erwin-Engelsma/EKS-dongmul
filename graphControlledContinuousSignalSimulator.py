@@ -180,7 +180,7 @@ class pyoGUI(wx.Panel):
 
 if __name__ == '__main__':        
     app = wx.App()   
-    mfbaseTitle = 'Pyo Modulation Controller GUI '
+    mfbaseTitle = 'Pyo EEG Simulator GUI '
     mainFrame = CSSGui(None, title= mfbaseTitle , size = (400, 250))
     mainFrame.Show()       
     app.MainLoop()
