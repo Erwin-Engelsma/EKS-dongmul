@@ -102,16 +102,15 @@ void doTheMove(){
     if (currentVolume < setVolume && currentPressure <= 530) {
       analogWrite(vacuumPump, 0);
       analogWrite(pressurePump, PWMPump);
-      currentVolume += PWMPump * (nextMoveTime * 0.010023 - 0.59826);
-      
+      currentVolume += PWMPump  * (nextMoveTime * 0.010053 - 0.47417);     
     } else {  
       if (currentPressure > 515) {  // basePressure
         analogWrite(vacuumPump, PWMPump);
         analogWrite(pressurePump, 0); 
-        currentVolume -= PWMPump * (nextMoveTime * 0.006065 - 0.34273); 
-      }  else{
+        currentVolume -= PWMPump * (nextMoveTime * 0.004622222 - 0.235344444); 
+      } else{
          analogWrite(vacuumPump, 0); //stop taking air out when pressure below basePressure  
-         currentVolume -= nextMoveTime * 0.0001 ;      
+         currentVolume -= nextMoveTime * 0.01;      
       }
     } 
 } 
