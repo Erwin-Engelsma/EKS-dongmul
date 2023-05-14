@@ -9,13 +9,6 @@ import wx
 import pyo
 from pyo import PyoGuiGrapher
 
-"""
-return y for x:
-    given X:
-        Find region in list where x1 < x < x2
-        find y1 and y2
-        y = distanceX in this segment * rc y1-->y2  (Later netter uit werkn)
-"""
 
 class channelNames(wx.Frame):
     def __init__(self,  channels, callBack):        
@@ -198,6 +191,7 @@ class flexGraph(wx.Frame):
         self.pyoGraph.setValues(values)
 
     def updateShortValues(self):
+        print("updating the short values")
         self.shortValues.clear()
         for valuePair in self.pyoGraph.getValues():
             yValue =  float("{:.6f}".format(valuePair[1]))
@@ -210,6 +204,8 @@ class flexGraph(wx.Frame):
     
     def findEquivalencePosition(self, x):
         index = 0
+        if not self.shortValues:
+            self.updateShortValues()
         while self.shortValues[index][0] < x:
             index += 1
         return index - 1
