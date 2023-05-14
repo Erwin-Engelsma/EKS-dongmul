@@ -191,6 +191,7 @@ class flexGraph(wx.Frame):
         self.pyoGraph.setValues(values)
 
     def updateShortValues(self):
+        print("updating the short values")
         self.shortValues.clear()
         for valuePair in self.pyoGraph.getValues():
             yValue =  float("{:.6f}".format(valuePair[1]))
@@ -203,6 +204,8 @@ class flexGraph(wx.Frame):
     
     def findEquivalencePosition(self, x):
         index = 0
+        if not self.shortValues:
+            self.updateShortValues()
         while self.shortValues[index][0] < x:
             index += 1
         return index - 1
